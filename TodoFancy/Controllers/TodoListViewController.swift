@@ -7,11 +7,12 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
     
     var itemArray = [Item]()
-    let TO_DO_LIST_ARRAY : String = "ToDoListArray"
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
 
@@ -21,7 +22,7 @@ class TodoListViewController: UITableViewController {
         loadItems()
     }
     
-    // MARK - TableView Datasource Methods
+    // MARK: - TableView Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return itemArray.count
     }
@@ -36,7 +37,7 @@ class TodoListViewController: UITableViewController {
         return cell
     }
     
-    // MARK - TableView Delegate Methods
+    // MARK: - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         print(indexPath.row)
         
@@ -49,7 +50,7 @@ class TodoListViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
     }
     
-    // MARK - Add New Item
+    //MARK: - Add New Item
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
         var textField = UITextField()
         
@@ -57,8 +58,10 @@ class TodoListViewController: UITableViewController {
         
         let alertAction = UIAlertAction.init(title: "Add Item", style: .default) { (action) in
             
-            let newItem = Item()
+            let newItem = Item(context: self.context)
+            
             newItem.title = textField.text!
+            newItem.done = false
             self.itemArray.append(newItem)
             
             self.saveData()
@@ -69,7 +72,7 @@ class TodoListViewController: UITableViewController {
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Create new item"
             
-            textField = alertTextField
+            textField = alertTextField  
         }
         
         alert.addAction(alertAction)
@@ -78,26 +81,43 @@ class TodoListViewController: UITableViewController {
         
     }
     
-    // MARK - Model Manipulation Methods
+    //MARK: - Model Manipulation Methods
     func saveData() {
-        let encoder = PropertyListEncoder()
-        
         do {
-            let data = try encoder.encode(self.itemArray)
-            try data.write(to: self.dataFilePath!)
+            try context.save()
         } catch {
-            print("Error encoding itemArray: \(error)")
+            print("Error saving context \(error)")
         }
     }
     
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
+        do {
+            itemArray = try context.fetch(request)
+            print("itemArray \(itemArray)")
+        } catch {
+            print("Error fetching data from context \(error)")
+        }
+        
+        tableView.reloadData()
+    }
+}
+
+extension TodoListViewController: UISearchBarDelegate {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+        
+        request.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        
+        loadItems(with: request)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadItems()
             
-            do {
-                itemArray = try decoder.decode([Item].self, from: data)
-            } catch {
-                print("Error decoding itemArray: \(error)")
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
             }
         }
     }
