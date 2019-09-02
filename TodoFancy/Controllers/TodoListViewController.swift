@@ -78,7 +78,6 @@ class TodoListViewController: UITableViewController {
         alert.addAction(alertAction)
         
         present(alert, animated: true, completion: nil)
-        
     }
     
     //MARK: - Model Manipulation Methods
